@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assignment Tracker</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 700px;
+      margin: 2rem auto;
+      line-height: 1.5;
+    }
+
+    .assignment {
+      margin-bottom: 1rem;
+    }
+
+    .completed label {
+      text-decoration: line-through;
+    }
+
+    button,
+    input {
+      margin: 0.25rem;
+    }
+
+    .status {
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Assignment Tracker</h1>
+
+  <p>
+    Check off assignments, download your progress as JSON, then load that JSON file next time.
+  </p>
+
+  <p id="progressText">0 of 3 complete</p>
+  <progress id="progressBar" value="0" max="3"></progress>
+
+  <hr />
+
+  <div id="assignmentList">
+    <div class="assignment">
+      <input type="checkbox" id="assignment-1" data-assignment-id="assignment-1" />
+      <label for="assignment-1">Assignment 1: Research Notes</label>
+    </div>
+
+    <div class="assignment">
+      <input type="checkbox" id="assignment-2" data-assignment-id="assignment-2" />
+      <label for="assignment-2">Assignment 2: First Draft</label>
+    </div>
+
+    <div class="assignment">
+      <input type="checkbox" id="assignment-3" data-assignment-id="assignment-3" />
+      <label for="assignment-3">Assignment 3: Final Submission</label>
+    </div>
+  </div>
+
+  <hr />
+
+  <button id="downloadJsonButton">Download Progress JSON</button>
+
+  <label for="jsonFileInput">Load Progress JSON:</label>
+  <input id="jsonFileInput" type="file" accept="application/json,.json" />
+
+  <button id="resetButton">Reset Progress</button>
+
+  <p class="status" id="statusMessage">No progress file loaded yet.</p>
+
+  <script>
+    const checkboxes = Array.from(document.querySelectorAll("input[type='checkbox'][data-assignment-id]"));
+    const progressText = document.getElementById("progressText");
+    const progressBar = document.getElementById("progressBar");
+    const statusMessage = document.getElementById("statusMessage");
+    const downloadJsonButton = document.getElementById("downloadJsonButton");
+    const jsonFileInput = document.getElementById("jsonFileInput");
+    const resetButton = document.getElementById("resetButton");
+
+    function updateProgress() {
+      const completedCount = checkboxes.filter((checkbox) => checkbox.checked).length;
+      const totalCount = checkboxes.length;
+
+      progressText.textContent = `${completedCount} of ${totalCount} complete`;
+      progressBar.value = completedCount;
+      progressBar.max = totalCount;
+
+      checkboxes.forEach((checkbox) => {
+        checkbox.parentElement.classList.toggle("completed", checkbox.checked);
+      });
+    }
+
+    function buildProgressData() {
+      return {
+        savedAt: new Date().toISOString(),
+        assignments: checkboxes.map((checkbox) => ({
+          id: checkbox.dataset.assignmentId,
+          completed: checkbox.checked
+        }))
+      };
+    }
+
+    function downloadProgressJson() {
+      const progressData = buildProgressData();
+      const jsonText = JSON.stringify(progressData, null, 2);
+      const blob = new Blob([jsonText], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+
+      const downloadLink = document.createElement("a");
+      downloadLink.href = url;
+      downloadLink.download = "assignment-progress.json";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+
+      URL.revokeObjectURL(url);
+      statusMessage.textContent = "Progress JSON downloaded.";
+    }
+
+    function loadProgressJson(file) {
+      const reader = new FileReader();
+
+      reader.onload = function(event) {
+        try {
+          const progressData = JSON.parse(event.target.result);
+
+          if (!Array.isArray(progressData.assignments)) {
+            throw new Error("JSON file does not contain an assignments array.");
+          }
+
+          progressData.assignments.forEach((savedAssignment) => {
+            const matchingCheckbox = checkboxes.find(
+              (checkbox) => checkbox.dataset.assignmentId === savedAssignment.id
+            );
+
+            if (matchingCheckbox) {
+              matchingCheckbox.checked = Boolean(savedAssignment.completed);
+            }
+          });
+
+          updateProgress();
+
+          const savedDate = progressData.savedAt
+            ? new Date(progressData.savedAt).toLocaleString()
+            : "unknown date";
+
+          statusMessage.textContent = `Loaded progress from ${file.name}. Saved at: ${savedDate}.`;
+        } catch (error) {
+          statusMessage.textContent = `Could not load JSON file: ${error.message}`;
+        }
+      };
+
+      reader.onerror = function() {
+        statusMessage.textContent = "Could not read the selected file.";
+      };
+
+      reader.readAsText(file);
+    }
+
+    function resetProgress() {
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+
+      updateProgress();
+      statusMessage.textContent = "Progress reset. Download a new JSON file to save this state.";
+    }
+
+    checkboxes.forEach((checkbox) => {
+      checkbox.addEventListener("change", updateProgress);
+    });
+
+    downloadJsonButton.addEventListener("click", downloadProgressJson);
+
+    jsonFileInput.addEventListener("change", function(event) {
+      const selectedFile = event.target.files[0];
+
+      if (selectedFile) {
+        loadProgressJson(selectedFile);
+      }
+
+      jsonFileInput.value = "";
+    });
+
+    resetButton.addEventListener("click", resetProgress);
+
+    updateProgress();
+  </script>
+</body>
+</html>

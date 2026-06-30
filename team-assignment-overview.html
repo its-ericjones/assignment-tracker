@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Team Assignment Overview</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      max-width: 1000px;
+      margin: 2rem auto;
+      line-height: 1.5;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 1rem;
+    }
+
+    th,
+    td {
+      border: 1px solid #999;
+      padding: 0.5rem;
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    th {
+      background: #eee;
+    }
+
+    progress {
+      width: 100%;
+    }
+
+    .status {
+      margin-top: 1rem;
+    }
+
+    .progress-label {
+      display: block;
+      margin-top: 0.25rem;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Team Assignment Overview</h1>
+
+  <p>
+    Upload multiple team member progress JSON files to see assignment progress across the team.
+  </p>
+
+  <p>
+    This page expects files to use the current progress JSON structure from the individual tracker.
+    It identifies each team member from the filename.
+  </p>
+
+  <label for="jsonFileInput">Load Team Progress JSON Files:</label>
+  <input id="jsonFileInput" type="file" accept="application/json,.json" multiple />
+
+  <button id="clearButton">Clear Loaded Files</button>
+
+  <p class="status" id="statusMessage">No team progress files loaded yet.</p>
+
+  <div id="overview"></div>
+
+  <script>
+    const jsonFileInput = document.getElementById("jsonFileInput");
+    const clearButton = document.getElementById("clearButton");
+    const statusMessage = document.getElementById("statusMessage");
+    const overview = document.getElementById("overview");
+
+    let loadedTeamProgress = [];
+
+    const assignmentTitles = {
+      "assignment-1": "Research Notes",
+      "assignment-2": "First Draft",
+      "assignment-3": "Final Submission"
+    };
+
+    function getNameFromFileName(fileName) {
+      const baseName = fileName.replace(/\.json$/i, "");
+      const firstPart = baseName.split("-")[0];
+
+      if (!firstPart) {
+        return baseName || "Unknown";
+      }
+
+      return firstPart.charAt(0).toUpperCase() + firstPart.slice(1);
+    }
+
+    function readJsonFile(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onload = function(event) {
+          try {
+            const data = JSON.parse(event.target.result);
+
+            if (!Array.isArray(data.assignments)) {
+              throw new Error("JSON file does not contain an assignments array.");
+            }
+
+            resolve({
+              fileName: file.name,
+              userName: getNameFromFileName(file.name),
+              savedAt: data.savedAt || null,
+              assignments: data.assignments
+            });
+          } catch (error) {
+            reject(new Error(`${file.name}: ${error.message}`));
+          }
+        };
+
+        reader.onerror = function() {
+          reject(new Error(`${file.name}: Could not read file.`));
+        };
+
+        reader.readAsText(file);
+      });
+    }
+
+    function getAllAssignmentIds(teamProgress) {
+      const ids = new Set();
+
+      teamProgress.forEach((member) => {
+        member.assignments.forEach((assignment) => {
+          ids.add(assignment.id);
+        });
+      });
+
+      return Array.from(ids);
+    }
+
+    function getAssignmentTitle(assignmentId) {
+      return assignmentTitles[assignmentId] || assignmentId;
+    }
+
+    function renderProgressBar(completedCount, totalCount) {
+      const percentage = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
+
+      return `
+        <progress value="${completedCount}" max="${totalCount}"></progress>
+        <span class="progress-label">${percentage}% complete</span>
+      `;
+    }
+
+    function renderOverview() {
+      if (loadedTeamProgress.length === 0) {
+        overview.innerHTML = "";
+        statusMessage.textContent = "No team progress files loaded yet.";
+        return;
+      }
+
+      const assignmentIds = getAllAssignmentIds(loadedTeamProgress);
+
+      let html = "";
+
+      html += "<h2>Loaded Team Members</h2>";
+      html += "<ul>";
+
+      loadedTeamProgress.forEach((member) => {
+        const savedAt = member.savedAt ? new Date(member.savedAt).toLocaleString() : "unknown save time";
+        html += `<li>${member.userName} — ${member.fileName} — ${savedAt}</li>`;
+      });
+
+      html += "</ul>";
+
+      html += "<h2>Assignment Progress</h2>";
+      html += "<table>";
+      html += "<thead>";
+      html += "<tr>";
+      html += "<th>Assignment</th>";
+
+      loadedTeamProgress.forEach((member) => {
+        html += `<th>${member.userName}</th>`;
+      });
+
+      html += "<th>Team Progress</th>";
+      html += "</tr>";
+      html += "</thead>";
+      html += "<tbody>";
+
+      assignmentIds.forEach((assignmentId) => {
+        const title = getAssignmentTitle(assignmentId);
+        let completedCount = 0;
+
+        html += "<tr>";
+        html += `<td>${title}</td>`;
+
+        loadedTeamProgress.forEach((member) => {
+          const assignment = member.assignments.find((item) => item.id === assignmentId);
+          const completed = assignment ? Boolean(assignment.completed) : false;
+
+          if (completed) {
+            completedCount += 1;
+          }
+
+          html += `<td>${completed ? "Complete" : "Incomplete"}</td>`;
+        });
+
+        html += `<td>${renderProgressBar(completedCount, loadedTeamProgress.length)}</td>`;
+        html += "</tr>";
+      });
+
+      html += "</tbody>";
+      html += "</table>";
+
+      overview.innerHTML = html;
+      statusMessage.textContent = `Loaded ${loadedTeamProgress.length} team progress file(s).`;
+    }
+
+    jsonFileInput.addEventListener("change", async function(event) {
+      const files = Array.from(event.target.files);
+
+      if (files.length === 0) {
+        return;
+      }
+
+      try {
+        loadedTeamProgress = await Promise.all(files.map(readJsonFile));
+        renderOverview();
+      } catch (error) {
+        statusMessage.textContent = `Could not load team progress: ${error.message}`;
+      }
+
+      jsonFileInput.value = "";
+    });
+
+    clearButton.addEventListener("click", function() {
+      loadedTeamProgress = [];
+      renderOverview();
+    });
+
+    renderOverview();
+  </script>
+</body>
+</html>

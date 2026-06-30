@@ -1,0 +1,17 @@
+{
+  "savedAt": "2026-06-30T20:18:00.000Z",
+  "assignments": [
+    {
+      "id": "assignment-1",
+      "completed": true
+    },
+    {
+      "id": "assignment-2",
+      "completed": false
+    },
+    {
+      "id": "assignment-3",
+      "completed": false
+    }
+  ]
+}
