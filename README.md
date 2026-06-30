@@ -365,13 +365,7 @@ When using one of these prompts, provide:
 2. One prompt file from the `prompts/` folder
 3. Any source data or existing tracker files needed for the task
 
-Use only one prompt file at a time.
-
-The README explains the project.
-
-The prompt file gives the LLM the task.
-
-The source data or existing tracker files give the LLM the material to work from.
+*Use only one prompt file at a time.*
 
 A simple way to think about it is:
 
